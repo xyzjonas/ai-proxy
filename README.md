@@ -32,3 +32,48 @@ curl -H "Authorization: Bearer ..." -d '{"input":"hi"}' -H 'content-type: applic
 ```
 
 `just docker` builds and pushes `scotch3840/ai-proxy:latest`.
+
+## Docker Compose
+
+YAML block scalars keep the inline JSON schema readable: `|` preserves newlines (literal), `>-`
+folds lines into one string, which suits a long system prompt.
+
+```yaml
+services:
+  ai-proxy:
+    image: scotch3840/ai-proxy:latest
+    ports:
+      - "8000:8000"
+    environment:
+      AUTH_SECRET: ${AUTH_SECRET}          # from shell or .env next to this file
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: gpt-4.1-mini
+      SYSTEM_PROMPT: >-
+        You are a support ticket classifier.
+        Read the user's message and categorize it.
+        Be conservative: use "other" when unsure.
+      RESPONSE_SCHEMA_NAME: ticket
+      RESPONSE_SCHEMA: |
+        {
+          "type": "object",
+          "properties": {
+            "category": {"type": "string", "enum": ["billing", "bug", "feature", "other"]},
+            "urgent": {"type": "boolean"},
+            "summary": {"type": "string"}
+          },
+          "required": ["category", "urgent", "summary"],
+          "additionalProperties": false
+        }
+```
+
+Alternatively, mount the schema as a file instead of inlining it:
+
+```yaml
+    environment:
+      RESPONSE_SCHEMA_FILE: /schema.json
+    volumes:
+      - ./schema.json:/schema.json:ro
+```
+
+Note: Compose interpolates `$` in values, so write `$$` if your prompt or schema contains a literal
+dollar sign (e.g. a regex `pattern`).
