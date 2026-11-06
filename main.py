@@ -1,7 +1,8 @@
 """ai-proxy: a single-endpoint HTTP wrapper around one OpenAI Responses API prompt.
 
 Environment:
-  AUTH_SECRET            required; clients send `Authorization: Bearer <secret>`
+  AUTH_SECRET            optional; if set, clients must send `Authorization: Bearer <secret>`
+                         (if unset, requests are NOT authenticated)
   OPENAI_API_KEY         required
   OPENAI_MODEL           required (e.g. gpt-4.1-mini)
   SYSTEM_PROMPT          required
@@ -15,7 +16,8 @@ import hmac
 import json
 import os
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jsonschema import Draft202012Validator, ValidationError
 from openai import APIError, OpenAI
 from pydantic import BaseModel
@@ -43,16 +45,16 @@ SCHEMA_NAME = os.environ.get("RESPONSE_SCHEMA_NAME", "response")
 VALIDATOR = Draft202012Validator(SCHEMA)
 
 client = OpenAI()  # reads OPENAI_API_KEY (+ optional base url/org/project) from env
-app = FastAPI(title="ai-proxy", docs_url=None, redoc_url=None, openapi_url=None)
+app = FastAPI(title="ai-proxy", redoc_url=None)  # Swagger UI at /docs
 
 
-def require_auth(request: Request) -> None:
-    scheme, _, token = request.headers.get("authorization", "").partition(" ")
-    if (
-        not AUTH_SECRET  # no secret configured -> nobody gets in
-        or scheme.lower() != "bearer"
-        or not hmac.compare_digest(token.encode(), AUTH_SECRET.encode())
-    ):
+bearer = HTTPBearer(auto_error=False)  # also makes Swagger show an "Authorize" button
+
+
+def require_auth(creds: HTTPAuthorizationCredentials | None = Depends(bearer)) -> None:
+    if not AUTH_SECRET:  # auth disabled
+        return
+    if creds is None or not hmac.compare_digest(creds.credentials.encode(), AUTH_SECRET.encode()):
         raise HTTPException(401, "Unauthorized", headers={"WWW-Authenticate": "Bearer"})
 
 

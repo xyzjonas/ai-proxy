@@ -6,13 +6,14 @@ returns JSON that is guaranteed to match a schema you define.
 - `GET /` – configuration info (model, system prompt, schema)
 - `POST /` – body `{"input": "..."}`; returns the model's JSON output verbatim (HTTP 502 if it doesn't validate)
 
-Both require `Authorization: Bearer $AUTH_SECRET`. If `AUTH_SECRET` is unset, everything returns 401.
+If `AUTH_SECRET` is set, both require `Authorization: Bearer $AUTH_SECRET` (otherwise 401). If it is
+unset, auth is disabled and requests are not validated. Swagger UI is served at `/docs`.
 
 ## Config (env)
 
 | var | |
 |---|---|
-| `AUTH_SECRET` | shared secret |
+| `AUTH_SECRET` | optional shared secret; unset = no auth |
 | `OPENAI_API_KEY`, `OPENAI_MODEL` | required |
 | `SYSTEM_PROMPT` | required |
 | `RESPONSE_SCHEMA` / `RESPONSE_SCHEMA_FILE` | JSON Schema, inline or a mounted file path |
@@ -45,7 +46,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      AUTH_SECRET: ${AUTH_SECRET}          # from shell or .env next to this file
+      AUTH_SECRET: ${AUTH_SECRET}          # optional; omit to disable auth
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       OPENAI_MODEL: gpt-4.1-mini
       SYSTEM_PROMPT: >-
